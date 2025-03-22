@@ -24,7 +24,12 @@ class DB:
         # output successful connection message
         print("DB Connected Successfully!")
 
-    def create_table(self):
+    """
+    ================================================== 
+                USER RELATED METHODS 
+    ================================================== 
+    """
+    def create_table_user(self):
         """
         Create `tbl_user` in Supabase PostgreSQL.
         """
@@ -46,6 +51,8 @@ class DB:
                 username VARCHAR(128) UNIQUE NOT NULL,
                 email VARCHAR(128) UNIQUE NOT NULL,
                 password_hash VARCHAR(256) NOT NULL,
+                learning_goal TEXT,
+                skill_level TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP,
                 role VARCHAR(50) DEFAULT 'user',
@@ -121,6 +128,12 @@ class DB:
         """Retrieve a single user by ID."""
         response = self.supabase.table("tbl_user").select("*").eq("id", user_id).execute()
         return response.data 
+    
+    # selet a user by email
+    def get_user_by_email(self, email):
+        """Retrieve a single user by email."""
+        response = self.supabase.table("tbl_user").select("*").eq("email", email).execute()
+        return response.data
 
     # Update user
     def update_user(self, user_id, new_username, new_password):
@@ -142,3 +155,72 @@ class DB:
         """Delete a user from tbl_user by ID."""
         response = self.supabase.table("tbl_user").delete().eq("id", user_id).execute()
         return response.data
+    
+    """
+    ================================================== 
+                    LLAMA RELATED METHODS 
+    ==================================================  
+    """
+    def create_table_conversation(self):
+        """
+        Create `tbl_conversation` to store user and AI conversations.
+        """
+        try:
+            DATABASE_URL = os.getenv("SUPABASE_DB_URL")
+            conn = psycopg2.connect(DATABASE_URL)
+            cur = conn.cursor()
+
+            # Drop table if it exists and create a new one
+            drop_table_sql = "DROP TABLE IF EXISTS tbl_conversation CASCADE;"
+            create_table_sql = """
+            CREATE TABLE IF NOT EXISTS tbl_conversation (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES tbl_user(id),
+                role VARCHAR(50) NOT NULL,  -- AI or User
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            # Execute SQL commands
+            cur.execute(drop_table_sql)
+            cur.execute(create_table_sql)
+            conn.commit()
+            print("Table 'tbl_conversation' created successfully!")
+
+            # Close connection
+            cur.close()
+            conn.close()
+
+        except Exception as e:
+            print("Error creating table: %s" % (e))
+
+    def check_user_conversation_exists(self, user_id):
+        """Check if the user has a conversation history."""
+        response = self.supabase.table("tbl_conversation").select("id").eq("user_id", user_id).execute()
+        return len(response.data) > 0
+    
+    def insert_user_message(self, user_id, message):
+        """Insert the user's message into the conversation table."""
+        self.supabase.table("tbl_conversation").insert({
+            "user_id": user_id,
+            "role": "User",
+            "message": message
+        }).execute()
+
+    def insert_ai_response(self, user_id, message):
+        """Insert the AI's response into the conversation table."""
+        self.supabase.table("tbl_conversation").insert({
+            "user_id": user_id,
+            "role": "AI",
+            "message": message
+        }).execute()
+
+    def get_conversation_history(self, user_id):
+        """Get the conversation history for a user."""
+        response = self.supabase.table("tbl_conversation").select("*").eq("user_id", user_id).execute()
+        return response.data
+
+    def check_user_conversation_exists(self, user_id):
+        """Check if the user has a conversation history."""
+        response = self.supabase.table("tbl_conversation").select("id").eq("user_id", user_id).execute()
+        return len(response.data) > 0  

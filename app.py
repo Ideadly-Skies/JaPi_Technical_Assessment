@@ -1,12 +1,14 @@
 # imports
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response # type: ignore
-from flask_jwt_extended import JWTManager, create_access_token                       # type: ignore
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, session, jsonify # type: ignore
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity                        # type: ignore
 from DB import DB
-from datetime import datetime  # Import the datetime class
-from dotenv import load_dotenv                                                       # type: ignore
+from datetime import datetime    
+from dotenv import load_dotenv                                                                                        # type: ignore
 import random
 import string
+from langchain_ollama import OllamaLLM                                                                                # type: ignore
+from langchain_core.prompts import ChatPromptTemplate                                                                 # type: ignore
 
 """
 ===================================
@@ -21,7 +23,7 @@ db = DB()
 
 """
 ===================================
-      Routes + Flask App Flow
+   Init Flask APP and Auth Feat 
 ===================================
 """
 # init new flask instance
@@ -47,12 +49,13 @@ def generate_captcha():
     # Return captcha as text or image (depending on your implementation)
     return captcha_value
 
-# login route
 @app.route('/login', methods=['POST'])
 def login():
-    email = request.form['email']
-    password = request.form['password']
-    captcha_input = request.form['captcha']
+    # Get the data from the request JSON body
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    captcha_input = data.get('captcha')
 
     # Get the stored captcha from the session
     stored_captcha = session.get('captcha')
@@ -70,17 +73,34 @@ def login():
         # store email in session
         session['email'] = email
 
+        user = db.get_user_by_email(email)
+    
+        if not user:
+            flash("User not found", "error")
+            return redirect(url_for('index')) 
+
+        # check if user is returning user or not
+        learning_goal = user[0].get("learning_goal", None)
+        skill_level = user[0].get("skill_level", None)
+
+        # flag to check if user is new
+        returningUser = False
+
+        if learning_goal or skill_level:
+            returningUser = True
+
         # send token as cookie
         response = make_response(redirect(url_for('dashboard')))
         response.set_cookie('access_token', access_token)
 
         flash("Login successful!", 'success')
-        return redirect(url_for('dashboard'))
+        
+        # Send token as JSON response so that it can be saved in localStorage
+        return jsonify({'access_token': access_token, 'returningUser': returningUser}), 200
     else:
         flash("Login failed. Check your credentials.", 'error')
         return redirect(url_for('index'))
 
-# logout from JaPi App
 @app.route('/logout')
 def logout():
     # retrieve user email from session 
@@ -104,20 +124,22 @@ def logout():
 # dashboard to invoke conversation with AI
 @app.route('/dashboard')
 def dashboard():
-    # Fetch all users from the database
-    users = db.get_all_users()
+    user_email = session.get('email')
+    user = db.get_user_by_email(user_email)
+    
+    if not user:
+        flash("User not found", "error")
+        return redirect(url_for('index')) 
 
+    username = user[0]['username'] 
+    
     # Convert CreateTime to datetime and format it
-    for user in users:
-        # Ensure 'CreateTime' is in datetime format
-        if isinstance(user['created_at'], str):
-            # Use the correct format for ISO 8601 with microseconds
-            user['created_at'] = datetime.strptime(user['created_at'], '%Y-%m-%dT%H:%M:%S.%f')
-        # Format the datetime object as 'YYYY-MM-DD'
-        user['created_at'] = user['created_at'].strftime('%Y-%m-%d')
+    if isinstance(user[0]['created_at'], str):
+        user[0]['created_at'] = datetime.strptime(user[0]['created_at'], '%Y-%m-%dT%H:%M:%S.%f')
+    user[0]['created_at'] = user[0]['created_at'].strftime('%Y-%m-%d')
 
-    # Render the dashboard template with users data
-    return render_template('dashboard.html', users=users)
+    # Render the dashboard template with the user's username and other data
+    return render_template('dashboard.html', username=username) 
 
 # register new user route 
 @app.route('/create_user', methods=['GET', 'POST'])
@@ -131,9 +153,103 @@ def create_user():
         db.insert_user(username, email, password)
         
         flash("BERHASIL MENAMBAHKAN USER BARU!", 'success')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('index'))
 
     return render_template('create_user.html')
+
+"""
+=====================================================
+    Update User English Goal + Proficiency Level 
+=====================================================
+"""
+@app.route('/update_user_info', methods=['GET', 'POST'])
+def update_user_info():
+    user_email = session.get('email')
+ 
+    # Fetch the user from the database
+    user = db.get_user_by_email(user_email)
+    user_id = user[0]['id']
+
+    if request.method == 'POST':
+        learning_goal = request.form['learning_goal']
+        skill_level = request.form['skill_level']
+
+        # Update the user info in the database
+        db.supabase.table("tbl_user").update({
+            "learning_goal": learning_goal,
+            "skill_level": skill_level
+        }).eq("id", user_id).execute()
+
+        flash("Your information has been updated successfully!", 'success')
+        return redirect(url_for('dashboard'))  
+
+    return render_template('onboarding.html') 
+
+"""
+=====================================================
+    LLama Flow to chat with Logged-In User (TBA)
+=====================================================
+"""
+# Template for the conversation
+template = """
+Answer the question below.
+
+Here is the conversation history: {context}
+
+Question: {question}
+
+Answer:
+"""
+model = OllamaLLM(model="llama3")
+prompt = ChatPromptTemplate.from_template(template)
+chain = prompt | model
+
+# Function to retrieve the conversation history from the database
+def get_conversation_history(user_id):
+    # Retrieve conversation history from the database for the specific user
+    conversation = db.get_conversation_history(user_id)
+    context = ""
+    for msg in conversation:
+        context += f"{msg['role']}: {msg['message']}\n"
+    return context
+
+@app.route('/chat', methods=['POST'])
+@jwt_required()
+def chat():
+    # Retrieve logged-in user's email
+    user_email = get_jwt_identity()
+    user = db.get_user_by_email(user_email)
+    user_id = user[0]['id']
+    user_name = user[0]['username']
+
+    # Check if the learning_goal and skill_level are set in the tbl_user table
+    learning_goal = user[0].get("learning_goal", None)
+    skill_level = user[0].get("skill_level", None)
+
+    # If learning_goal or skill_level is not set, prompt the user to fill it in
+    if not learning_goal or not skill_level:
+        return jsonify({
+            "role": "AI",
+            "message": f"Hi {user_name}, you're new here! Please set your English learning goal and proficiency level."
+        })
+
+    # Retrieve conversation history from the database
+    context = get_conversation_history(user_id)
+
+    # Now the user input is part of the conversation
+    user_input = request.json.get('user_input', '')
+
+    # Combine context and user input into one prompt string
+    prompt_string = f"Here is the conversation history:\n{context}\nQuestion: {user_input}\nAnswer:"
+
+    # Pass the concatenated string to the model
+    result = model.invoke(prompt_string)
+
+    # Log ongoing conversation in the conversation history
+    db.insert_user_message(user_id, user_input)
+    db.insert_ai_response(user_id, result)
+
+    return jsonify({"role": "AI", "message": result})
 
 """
 ===============================
@@ -143,7 +259,8 @@ def create_user():
 # checks if the current script is being run directly as the main program
 # or if it's being imported as a module into another program
 if __name__ == "__main__":
-    # migrate and create `tbl_user`
-    # db.create_table()
-    
-    app.run(debug=True)
+    # migrate and create `tbl_user` and `tbl_conversation`
+    # db.create_table_user()
+    # db.create_table_conversation()
+
+    app.run(host="0.0.0.0", port=8080) 

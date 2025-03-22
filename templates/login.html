@@ -162,7 +162,7 @@
         {% endwith %}
 
         <h2>Form Login</h2>
-        <form action="{{ url_for('login') }}" method="post">
+        <form id="login-form">
             <label for="email">Email:</label>
             <input type="text" id="email" name="email" required><br><br>
             
@@ -181,28 +181,68 @@
             
             <button type="submit">Submit</button>
         </form>
-        
+
         <a href="{{ url_for('create_user') }}">Create User</a>
     </div> 
-</body>
 
-<script>
-    function refreshCaptcha() {
-        fetch("{{ url_for('generate_captcha') }}")
-            .then(response => response.text())
-            .then(captcha => {
-                document.getElementById("captcha-text").innerText = captcha;
+    <script>
+        function refreshCaptcha() {
+            fetch("{{ url_for('generate_captcha') }}")
+                .then(response => response.text())
+                .then(captcha => {
+                    document.getElementById("captcha-text").innerText = captcha;
+            });
+        }
+
+        // automatically hide the flash message after 3 seconds 
+        window.onload = function() {
+            setTimeout(function() {
+                var flashMessage = document.getElementById("flash-message");
+                if (flashMessage) {
+                    flashMessage.style.display = 'none';  
+                }
+            }, 3000);  
+        }
+
+        // Handle login form submission
+        document.getElementById("login-form").addEventListener("submit", function(event) {
+            event.preventDefault(); 
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const captcha = document.getElementById('captcha').value;
+
+            const loginData = { email, password, captcha };
+
+            // Send the login data to the server via fetch
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(loginData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.access_token && data.returningUser) {
+                    // Store JWT token in localStorage
+                    localStorage.setItem('jwt_token', data.access_token);
+                    console.log('JWT Token saved to localStorage:', data.access_token);
+                    window.location.href = "/dashboard";
+                } else if (data.access_token && !data.returningUser) {
+                    // Store JWT token in localStorage
+                    localStorage.setItem('jwt_token', data.access_token);
+                    console.log('JWT Token saved to localStorage:', data.access_token);
+                    window.location.href = "/update_user_info";
+                } 
+                else {
+                    alert('Login failed');  
+                }
+            })
+            .catch(error => {
+                console.log('Error during login:', error);
+            });
         });
-    }
-
-    // automatically hide the flash message after 3 seconds 
-    window.onload = function() {
-        setTimeout(function() {
-            var flashMessage = document.getElementById("flash-message");
-            if (flashMessage) {
-                flashMessage.style.display = 'none';  
-            }
-        }, 3000);  
-    }
-</script>
+    </script>
+</body>
 </html>
