@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Chat with AI</title>
+    <style>
+        /* Styling for the dashboard */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        h2 {
+            text-align: center;
+            padding: 20px;
+            color: #333;
+        }
+
+        #chat-box {
+            width: 60%;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            height: 500px;
+        }
+
+        #conversation {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            max-height: 400px;
+        }
+
+        .message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+
+        .user-message {
+            background-color: #d1e7ff;
+            align-self: flex-end;
+        }
+
+        .ai-message {
+            background-color: #e8e8e8;
+            align-self: flex-start;
+        }
+
+        #user-message {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin-top: 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #logout-btn {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #007BFF;
+            text-decoration: none;
+        }
+
+        #logout-btn:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h2>Welcome to Japi, {{ username }}!</h2>
+    
+    <div id="chat-box">
+        <div id="conversation">
+            <!-- The conversation will be loaded here dynamically -->
+        </div>
+
+        <textarea id="user-message" placeholder="Type your message..." rows="3"></textarea>
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <a id="logout-btn" href="{{ url_for('logout') }}">Logout</a>
+
+    <script>
+        let conversation = []; // Initialize conversation array
+
+        // Function to update the conversation on the page
+        function updateConversation() {
+            const conversationDiv = document.getElementById('conversation');
+            conversationDiv.innerHTML = '';  // Clear existing messages
+
+            conversation.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message', msg.role === 'User' ? 'user-message' : 'ai-message');
+                messageDiv.textContent = (msg.role === 'User' ? 'You: ' : 'AI: ') + msg.content;
+                conversationDiv.appendChild(messageDiv);
+            });
+
+            // Scroll to the bottom of the conversation
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+
+        // Function to send the message to the backend and get a response
+        function sendMessage() {
+            let message = document.getElementById('user-message').value.trim();
+            if (message) {
+                // Add user message to conversation history
+                conversation.push({ "role": "User", "content": message });
+                updateConversation();
+
+                // Clear the message box
+                document.getElementById('user-message').value = "";
+
+                // Prepare the request data
+                const requestData = {
+                    conversation: conversation,
+                    user_input: message
+                };
+
+                // Call the /chat API with the conversation
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') // Ensure JWT token is available
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.role === "AI" && data.message) {
+                        // Add AI's response to the conversation
+                        conversation.push({ "role": "AI", "content": data.message });
+                        updateConversation();
+                    } else {
+                        console.error("No AI response received.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error during API request:", error);
+                    alert("Something went wrong. Please try again.");
+                });
+            }
+        }
+
+        // Initialize the conversation on page load
+        window.onload = function() {
+            // Fetch the conversation history for the logged-in user
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') // Ensure JWT token is available
+                },
+                body: JSON.stringify({ user_input: '' })  // Send an empty input to fetch history
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.role === "AI" && data.message) {
+                    conversation.push({ "role": "AI", "content": data.message });
+                    updateConversation();
+                }
+            })
+            .catch(error => console.error("Error fetching conversation data:", error));
+        };
+    </script>
+</body>
+</html>

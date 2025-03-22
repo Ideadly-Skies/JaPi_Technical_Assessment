@@ -222,19 +222,20 @@ def chat():
     user_id = user[0]['id']
     user_name = user[0]['username']
 
-    # Check if the learning_goal and skill_level are set in the tbl_user table
+    # Fetch learning_goal and skill_level
     learning_goal = user[0].get("learning_goal", None)
     skill_level = user[0].get("skill_level", None)
 
-    # If learning_goal or skill_level is not set, prompt the user to fill it in
-    if not learning_goal or not skill_level:
-        return jsonify({
-            "role": "AI",
-            "message": f"Hi {user_name}, you're new here! Please set your English learning goal and proficiency level."
-        })
-
-    # Retrieve conversation history from the database
+    # initiate personalized conversation
     context = get_conversation_history(user_id)
+
+    # Generate a personalized greeting and conversation starter based on the learning goal and proficiency level
+    if learning_goal and skill_level:
+        ai_greeting = f"Let's begin with a practice conversation, {user_name}. Based on your goal to {learning_goal} and your current proficiency level of {skill_level}, I recommend starting with some practice on {learning_goal}."
+        
+        # Add the AI's greeting to the conversation context
+        context += f"AI: {ai_greeting}\n"
+        db.insert_ai_response(user_id, ai_greeting)
 
     # Now the user input is part of the conversation
     user_input = request.json.get('user_input', '')
@@ -263,4 +264,4 @@ if __name__ == "__main__":
     # db.create_table_user()
     # db.create_table_conversation()
 
-    app.run(host="0.0.0.0", port=8080) 
+    app.run(host="0.0.0.0", port=8080)
