@@ -46,6 +46,8 @@
             font-size: 16px;
             margin-bottom: 10px;
             padding-right: 10px;
+            display: flex;
+            flex-direction: column;
         }
 
         .message {
@@ -57,12 +59,12 @@
 
         .user-message {
             background-color: #d1e7ff;
-            align-self: flex-end;
+            align-self: flex-end; /* Align user messages to the right */
         }
 
         .ai-message {
             background-color: #e8e8e8;
-            align-self: flex-start;
+            align-self: flex-start; /* Align AI messages to the left */
         }
 
         #user-message {
@@ -123,6 +125,23 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* Waiting for AI message */
+        #waiting-message {
+            text-align: center;
+            font-size: 18px;
+            color: #007BFF;
+            margin-top: 20px;
+            animation: fadeInOut 4s ease-in-out infinite;
+            opacity: 1;
+        }
+
+        /* Fade-in and fade-out animation */
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
         /* Update Info Button */
         #update-info-btn {
             text-align: center;
@@ -165,6 +184,11 @@
     <div id="chat-container">
         <!-- Chat Box on Right -->
         <div id="chat-box">
+            <!-- Waiting for AI to initiate the conversation -->
+            <div id="waiting-message">
+                Waiting for AI to initiate conversation / Waiting for Message...
+            </div>
+
             <!-- Loading Spinner -->
             <div id="loading">
                 <div class="spinner"></div>
@@ -213,8 +237,10 @@
             const loadingDiv = document.getElementById('loading');
             if (show) {
                 loadingDiv.style.display = 'block';  // Show loading spinner
+                document.getElementById('waiting-message').style.display = 'none'; 
             } else {
                 loadingDiv.style.display = 'none';   // Hide loading spinner
+                document.getElementById('waiting-message').style.display = 'block';
             }
         }
 
