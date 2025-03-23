@@ -9,6 +9,7 @@ import random
 import string
 from langchain_ollama import OllamaLLM                                                                                # type: ignore
 from langchain_core.prompts import ChatPromptTemplate                                                                 # type: ignore
+from flask_swagger_ui import get_swaggerui_blueprint
 
 """
 ===================================
@@ -23,6 +24,24 @@ db = DB()
 
 """
 ===================================
+    Swagger Documentation 
+===================================
+"""
+# Swagger configuration
+SWAGGER_URL = '/api/docs'  # URL for exposing Swagger UI (without trailing '/')
+API_URL = '/static/swagger.json'  # URL for your API specification file
+
+# Call factory function to create the Swagger UI blueprint
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,  # Swagger UI static files will be served at {SWAGGER_URL}
+    API_URL,
+    config={  # Swagger UI config overrides
+        'app_name': "Japi API Documentation"
+    }
+)
+
+"""
+===================================
    Init Flask APP and Auth Feat 
 ===================================
 """
@@ -31,6 +50,9 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 app.config['JWT_SECRET_KEY'] = os.getenv("SECRET_KEY")
 jwt = JWTManager(app)
+
+# Register the Swagger UI blueprint with the Flask app
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 @app.route('/')
 def index():
