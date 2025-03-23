@@ -164,6 +164,8 @@ def create_user():
 """
 @app.route('/update_user_info', methods=['GET', 'POST'])
 def update_user_info():
+    flash("Successfully navigated to profile section", 'success')
+
     user_email = session.get('email')
  
     # Fetch the user from the database
@@ -183,7 +185,7 @@ def update_user_info():
         flash("Your information has been updated successfully!", 'success')
         return redirect(url_for('dashboard'))  
 
-    return render_template('onboarding.html') 
+    return render_template('onboarding.html', user=user[0]) 
 
 """
 =====================================================

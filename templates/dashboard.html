@@ -21,6 +21,8 @@
 
         #chat-container {
             display: flex;
+            justify-content: center;
+            align-items: flex-start;
             width: 80%;
             margin: 0 auto;
             background-color: white;
@@ -30,21 +32,12 @@
             height: 500px;
         }
 
-        /* Conversation history on the left */
-        #conversation-history {
-            width: 30%;
-            padding-right: 20px;
-            overflow-y: auto;
-            font-size: 16px;
-            max-height: 400px;
-            border-right: 2px solid #ddd;
-        }
-
-        /* Chat box on the right */
+        /* Chat box area */
         #chat-box {
-            width: 70%;
+            width: 100%;
             display: flex;
             flex-direction: column;
+            height: 100%;
         }
 
         #conversation {
@@ -52,12 +45,14 @@
             overflow-y: auto;
             font-size: 16px;
             margin-bottom: 10px;
+            padding-right: 10px;
         }
 
         .message {
             padding: 10px;
             margin: 5px 0;
             border-radius: 5px;
+            width: fit-content;
         }
 
         .user-message {
@@ -135,26 +130,39 @@
             color: #007BFF;
             text-decoration: none;
             font-size: 16px;
+            margin-right: 20px; /* Space between the links */
         }
 
         #update-info-btn:hover {
             text-decoration: underline;
         }
+
+        /* Footer Section */
+        #footer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        #footer a {
+            text-align: center;
+            margin: 0 10px; /* Space between the links */
+            color: #007BFF;
+            font-size: 16px;
+        }
+
+        #footer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <h2>Welcome to Japi, {{ username }}! hell yeah</h2>
+    <h2>Welcome to Japi, {{ username }}!</h2>
     
     <!-- Chat Container -->
     <div id="chat-container">
-        <!-- Conversation History on Left -->
-        <div id="conversation-history">
-            <h3>Conversation History:</h3>
-            <div id="conversation">
-                <!-- The conversation history will be loaded here dynamically -->
-            </div>
-        </div>
-
         <!-- Chat Box on Right -->
         <div id="chat-box">
             <!-- Loading Spinner -->
@@ -163,13 +171,23 @@
                 <span>AI is thinking...</span>
             </div>
 
+            <div id="conversation">
+                <!-- The conversation will be loaded here dynamically -->
+            </div>
+
             <textarea id="user-message" placeholder="Type your message..." rows="3"></textarea>
             <button onclick="sendMessage()">Send</button>
         </div>
     </div>
 
-    <a id="update-info-btn" href="/update_user_info">Update Profile</a> |
-    <a id="logout-btn" href="{{ url_for('logout') }}">Logout</a> 
+    <!-- Footer with Links -->
+    <div id="footer">
+        <!-- Link to Update Profile -->
+        <a id="update-info-btn" href="/update_user_info">Update Profile</a>
+
+        <!-- Logout Button -->
+        <a id="logout-btn" href="{{ url_for('logout') }}">Logout</a>
+    </div>
 
     <script>
         let conversation = []; // Initialize conversation array
