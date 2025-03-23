@@ -204,6 +204,13 @@ def update_user_info():
             "skill_level": skill_level
         }).eq("id", user_id).execute()
 
+        # Generate a topic suggestion based on the updated info
+        suggested_topic = generate_topic(learning_goal, skill_level, user[0]['username'])
+        
+        # Insert an AI message acknowledging the update
+        ai_message = f"Great, {user[0]['username']}! Your learning goal is now set to '{learning_goal}' with a proficiency level of '{skill_level}'. Let's start with: '{suggested_topic}'."
+        db.insert_ai_response(user_id, ai_message)
+
         flash("Your information has been updated successfully!", 'success')
         return redirect(url_for('dashboard'))  
 
@@ -319,17 +326,17 @@ def chat():
 def generate_topic(learning_goal, skill_level, user_name):
     topics = {
         "improve speaking skills": {
-            "beginner": [f"introducing yourself, {user_name}", "asking for directions"],
-            "intermediate": [f"discussing your favorite hobbies, {user_name}", "describing your favorite movie"],
-            "advanced": [f"debating current events, {user_name}", "analyzing a news article"]
+            "beginner": [f"basic self-introductions, {user_name}", f"asking for directions in English"],
+            "intermediate": [f"discussing your career goals, {user_name}", f"describing your hometown"],
+            "advanced": [f"debating ethical dilemmas, {user_name}", f"analyzing TED Talks"]
         },
         "improve writing skills": {
-            "beginner": [f"writing a thank-you note, {user_name}", "describing your weekend"],
-            "intermediate": [f"crafting a job application email, {user_name}", "summarizing a book chapter"],
-            "advanced": [f"writing a persuasive essay, {user_name}", "drafting a business proposal"]
+            "beginner": [f"writing a diary entry, {user_name}", f"describing your family"],
+            "intermediate": [f"crafting a LinkedIn post, {user_name}", f"summarizing news articles"],
+            "advanced": [f"writing a research abstract, {user_name}", f"drafting a legal memo"]
         }
     }
-    return random.choice(topics.get(learning_goal, {}).get(skill_level, ["a fun cultural topic"]))
+    return random.choice(topics.get(learning_goal, {}).get(skill_level, ["a topic tailored to your updated skills"]))
 
 """
 ===============================
