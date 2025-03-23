@@ -220,6 +220,7 @@ Follow these rules:
 1. Avoid repeating the same response.
 2. Focus on the user's learning goal: {learning_goal} (skill level: {skill_level}).
 3. If stuck, suggest a new topic like: "{example_topic}".
+4. Address the user by their name ({user_name}) where relevant.
 
 Conversation history: {context}
 
@@ -256,6 +257,7 @@ def detect_loop(conversation):
     
     return False
 
+# chat with ai functionality
 @app.route('/chat', methods=['POST'])
 @jwt_required()
 def chat():
@@ -280,17 +282,33 @@ def chat():
     # Retrieve the conversation history as a list of messages
     conversation = db.get_conversation_history(user_id)
 
+    # Check if this is the start of a new conversation
+    if not conversation:
+        # Suggest a topic to start the conversation
+        suggested_topic = generate_topic(learning_goal, skill_level, user_name)
+        ai_message = f"Hi {user_name}! Let's practice your English. Based on your goal to {learning_goal}, how about discussing: '{suggested_topic}'?"
+        
+        # Save the AI's greeting to the database
+        db.insert_ai_response(user_id, ai_message)
+        
+        return jsonify({"role": "AI", "message": ai_message})
+
     if detect_loop(conversation):
-        new_topic = generate_topic(learning_goal, skill_level)
-        ai_message = f"Let's shift focus! Based on your goal to {learning_goal}, how about discussing: '{new_topic}'?"
+        new_topic = generate_topic(learning_goal, skill_level, user_name)
+        ai_message = f"Let's shift focus, {user_name}! Based on your goal to {learning_goal}, how about discussing: '{new_topic}'?"
         
         # Save the AI's new topic to the database
         db.insert_ai_response(user_id, ai_message)  # <-- Critical fix
         
         return jsonify({"role": "AI", "message": ai_message})
 
+    # Include user_name in the prompt string
     prompt_string = f"Here is the conversation history:\n{context}\nQuestion: {user_input}\nAnswer:"
     result = model.invoke(prompt_string)
+
+    # Add user_name to the AI's response if it makes sense
+    if "{" in result and "}" in result: 
+        result = result.format(user_name=user_name, learning_goal=learning_goal, skill_level=skill_level)
 
     db.insert_user_message(user_id, user_input)
     db.insert_ai_response(user_id, result)
@@ -298,17 +316,17 @@ def chat():
     return jsonify({"role": "AI", "message": result})
 
 # Function to generate a new topic based on learning goal and skill level
-def generate_topic(learning_goal, skill_level):
+def generate_topic(learning_goal, skill_level, user_name):
     topics = {
         "improve speaking skills": {
-            "beginner": ["ordering food at a restaurant", "asking for directions"],
-            "intermediate": ["discussing travel plans", "describing your favorite movie"],
-            "advanced": ["debating climate change", "analyzing a news article"]
+            "beginner": [f"introducing yourself, {user_name}", "asking for directions"],
+            "intermediate": [f"discussing your favorite hobbies, {user_name}", "describing your favorite movie"],
+            "advanced": [f"debating current events, {user_name}", "analyzing a news article"]
         },
         "improve writing skills": {
-            "beginner": ["writing a thank-you note", "describing your weekend"],
-            "intermediate": ["crafting a job application email", "summarizing a book chapter"],
-            "advanced": ["writing a persuasive essay", "drafting a business proposal"]
+            "beginner": [f"writing a thank-you note, {user_name}", "describing your weekend"],
+            "intermediate": [f"crafting a job application email, {user_name}", "summarizing a book chapter"],
+            "advanced": [f"writing a persuasive essay, {user_name}", "drafting a business proposal"]
         }
     }
     return random.choice(topics.get(learning_goal, {}).get(skill_level, ["a fun cultural topic"]))
