@@ -83,6 +83,12 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        /* Hide the message after the fade-out effect */
+        .flash-message.hidden {
+            opacity: 0;
+            display: none; 
+        }
     </style>
 </head>
 <body>
@@ -115,6 +121,16 @@
 
     const learning_goal = document.getElementById('learning_goal').value;
     const skill_level = document.getElementById('skill_level').value;
+    
+    // automatically hide the flash message after 3 seconds 
+    window.onload = function() {
+        setTimeout(function() {
+            var flashMessage = document.getElementById("flash-message");
+            if (flashMessage) {
+                flashMessage.style.display = 'none';  
+            }
+        }, 3000);  
+    }
 
     // Send the learning goal and skill level to the backend
     fetch('/update_user_info', {

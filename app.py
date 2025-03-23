@@ -226,31 +226,44 @@ def chat():
     learning_goal = user[0].get("learning_goal", None)
     skill_level = user[0].get("skill_level", None)
 
-    # initiate personalized conversation
+    # Retrieve conversation history from the database
     context = get_conversation_history(user_id)
 
-    # Generate a personalized greeting and conversation starter based on the learning goal and proficiency level
-    if learning_goal and skill_level:
-        ai_greeting = f"Let's begin with a practice conversation, {user_name}. Based on your goal to {learning_goal} and your current proficiency level of {skill_level}, I recommend starting with some practice on {learning_goal}."
-        
-        # Add the AI's greeting to the conversation context
-        context += f"AI: {ai_greeting}\n"
-        db.insert_ai_response(user_id, ai_greeting)
+    # If learning_goal or skill_level is not set, ask the user to set them
+    if not learning_goal or not skill_level:
+        return jsonify({
+            "role": "AI",
+            "message": f"Hi {user_name}, you're new here! Please set your English learning goal and proficiency level."
+        })
 
-    # Now the user input is part of the conversation
+    # Generate personalized greeting if learning_goal and skill_level are set
+    ai_greeting = f"Let's begin with a practice conversation, {user_name}. Based on your goal to {learning_goal} and your current proficiency level of {skill_level}, I recommend starting with some practice on {learning_goal}."
+    context += f"AI: {ai_greeting}\n"
+    db.insert_ai_response(user_id, ai_greeting)
+
+    # Get user input
     user_input = request.json.get('user_input', '')
 
-    # Combine context and user input into one prompt string
+    # Check for loop detection and off-topic behavior
+    off_topic_keywords = ["song", "lyrics", "music", "rapper", "album"]
+    if any(keyword in user_input.lower() for keyword in off_topic_keywords):
+        # Instructional message for off-topic conversation
+        redirect_message = f"It looks like we got off track, {user_name}. Let's refocus on your English learning! Try responding with something like: 'How can I improve my speaking skills?' or 'Let's start a conversation about {learning_goal}.'"
+        db.insert_ai_response(user_id, redirect_message)
+        return jsonify({"role": "AI", "message": redirect_message})
+
+    # Combine context and user input for the AI model
     prompt_string = f"Here is the conversation history:\n{context}\nQuestion: {user_input}\nAnswer:"
 
-    # Pass the concatenated string to the model
+    # Get the response from Llama model
     result = model.invoke(prompt_string)
 
-    # Log ongoing conversation in the conversation history
+    # Save conversation to the database
     db.insert_user_message(user_id, user_input)
     db.insert_ai_response(user_id, result)
 
     return jsonify({"role": "AI", "message": result})
+
 
 """
 ===============================
