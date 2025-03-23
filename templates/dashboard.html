@@ -214,12 +214,12 @@
     </div>
 
     <script>
-        let conversation = []; // Initialize conversation array
+        let conversation = [];
 
         // Function to update the conversation on the page
         function updateConversation() {
             const conversationDiv = document.getElementById('conversation');
-            conversationDiv.innerHTML = '';  // Clear existing messages
+            conversationDiv.innerHTML = ''; 
 
             conversation.forEach(msg => {
                 const messageDiv = document.createElement('div');

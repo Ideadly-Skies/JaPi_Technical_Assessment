@@ -194,9 +194,12 @@ def update_user_info():
 """
 # Template for the conversation
 template = """
-Answer the question below.
+Follow these rules:
+1. Avoid repeating the same response.
+2. Focus on the user's learning goal: {learning_goal} (skill level: {skill_level}).
+3. If stuck, suggest a new topic like: "{example_topic}".
 
-Here is the conversation history: {context}
+Conversation history: {context}
 
 Question: {question}
 
@@ -206,66 +209,87 @@ model = OllamaLLM(model="llama3")
 prompt = ChatPromptTemplate.from_template(template)
 chain = prompt | model
 
-# Function to retrieve the conversation history from the database
-def get_conversation_history(user_id):
-    # Retrieve conversation history from the database for the specific user
+# Example of limiting context length
+def get_conversation_history(user_id, max_messages=5):
     conversation = db.get_conversation_history(user_id)
     context = ""
-    for msg in conversation:
+    for msg in conversation[-max_messages:]:  # Only include the last 'max_messages' messages
         context += f"{msg['role']}: {msg['message']}\n"
     return context
+
+# Example of loop detection
+def detect_loop(conversation):
+    if len(conversation) < 3:
+        return False
+    
+    # Check if the last 3 AI messages are identical
+    last_ai_messages = [msg['message'] for msg in conversation[-3:] if msg['role'] == 'AI']
+    if len(last_ai_messages) >= 2 and len(set(last_ai_messages)) == 1:
+        return True
+    
+    # Check if user input repeats
+    user_inputs = [msg['message'] for msg in conversation[-3:] if msg['role'] == 'User']
+    if len(user_inputs) >= 2 and len(set(user_inputs)) == 1:
+        return True
+    
+    return False
 
 @app.route('/chat', methods=['POST'])
 @jwt_required()
 def chat():
-    # Retrieve logged-in user's email
     user_email = get_jwt_identity()
     user = db.get_user_by_email(user_email)
     user_id = user[0]['id']
     user_name = user[0]['username']
 
-    # Fetch learning_goal and skill_level
     learning_goal = user[0].get("learning_goal", None)
     skill_level = user[0].get("skill_level", None)
 
-    # Retrieve conversation history from the database
     context = get_conversation_history(user_id)
 
-    # If learning_goal or skill_level is not set, ask the user to set them
     if not learning_goal or not skill_level:
         return jsonify({
             "role": "AI",
             "message": f"Hi {user_name}, you're new here! Please set your English learning goal and proficiency level."
         })
 
-    # Generate personalized greeting if learning_goal and skill_level are set
-    ai_greeting = f"Let's begin with a practice conversation, {user_name}. Based on your goal to {learning_goal} and your current proficiency level of {skill_level}, I recommend starting with some practice on {learning_goal}."
-    context += f"AI: {ai_greeting}\n"
-    db.insert_ai_response(user_id, ai_greeting)
-
-    # Get user input
     user_input = request.json.get('user_input', '')
 
-    # Check for loop detection and off-topic behavior
-    off_topic_keywords = ["song", "lyrics", "music", "rapper", "album"]
-    if any(keyword in user_input.lower() for keyword in off_topic_keywords):
-        # Instructional message for off-topic conversation
-        redirect_message = f"It looks like we got off track, {user_name}. Let's refocus on your English learning! Try responding with something like: 'How can I improve my speaking skills?' or 'Let's start a conversation about {learning_goal}.'"
-        db.insert_ai_response(user_id, redirect_message)
-        return jsonify({"role": "AI", "message": redirect_message})
+    # Retrieve the conversation history as a list of messages
+    conversation = db.get_conversation_history(user_id)
 
-    # Combine context and user input for the AI model
+    if detect_loop(conversation):
+        new_topic = generate_topic(learning_goal, skill_level)
+        ai_message = f"Let's shift focus! Based on your goal to {learning_goal}, how about discussing: '{new_topic}'?"
+        
+        # Save the AI's new topic to the database
+        db.insert_ai_response(user_id, ai_message)  # <-- Critical fix
+        
+        return jsonify({"role": "AI", "message": ai_message})
+
     prompt_string = f"Here is the conversation history:\n{context}\nQuestion: {user_input}\nAnswer:"
-
-    # Get the response from Llama model
     result = model.invoke(prompt_string)
 
-    # Save conversation to the database
     db.insert_user_message(user_id, user_input)
     db.insert_ai_response(user_id, result)
 
     return jsonify({"role": "AI", "message": result})
 
+# Function to generate a new topic based on learning goal and skill level
+def generate_topic(learning_goal, skill_level):
+    topics = {
+        "improve speaking skills": {
+            "beginner": ["ordering food at a restaurant", "asking for directions"],
+            "intermediate": ["discussing travel plans", "describing your favorite movie"],
+            "advanced": ["debating climate change", "analyzing a news article"]
+        },
+        "improve writing skills": {
+            "beginner": ["writing a thank-you note", "describing your weekend"],
+            "intermediate": ["crafting a job application email", "summarizing a book chapter"],
+            "advanced": ["writing a persuasive essay", "drafting a business proposal"]
+        }
+    }
+    return random.choice(topics.get(learning_goal, {}).get(skill_level, ["a fun cultural topic"]))
 
 """
 ===============================
